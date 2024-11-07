@@ -32,11 +32,12 @@ public class Car implements Runnable, Raceable {
     private final Activity activity;
     private final List<Car> cars;
     private final View centerOfMassView;
-    private boolean running = true;
+    private boolean running = false;
     private double distance = 0;  // Variável para armazenar a distância percorrida
     private int penalty = 0;  // Variável para armazenar as penalidades
     private int priority = Thread.NORM_PRIORITY; // Prioridade padrão
     private volatile boolean paused = false;
+
 
 
     public Car(Activity activity, String name, double x, double y, int sensorRange, View trackView, ImageView carImageView, List<Car> cars) {
@@ -57,6 +58,10 @@ public class Car implements Runnable, Raceable {
         this.centerOfMassView.setBackgroundColor(Color.BLACK);
         this.centerOfMassView.setVisibility(View.INVISIBLE);
         ((ConstraintLayout) activity.findViewById(R.id.main)).addView(centerOfMassView);
+
+        Thread carThread = new Thread(this);
+        carThread.setPriority(priority);
+        carThread.start();
     }
 
     public double generateRandomSpeed() {
@@ -116,6 +121,18 @@ public class Car implements Runnable, Raceable {
 
     public double getDistance(){
         return this.distance;
+    }
+
+    public double setDistance(double distance){
+        return this.distance = distance;
+    }
+
+    public int setPenalty(int penalty){
+        return this.penalty = penalty;
+    }
+
+    public boolean isRunning(){
+        return running;
     }
 
     public List<Point> scanForWhitePixels() {
@@ -300,11 +317,10 @@ public class Car implements Runnable, Raceable {
     }
 
     @Override
-    public void startRace() {
+    public synchronized void startRace() {
         Log.d("Car", "Iniciando corrida para " + name);
-        Thread carThread = new Thread(this);
-        carThread.setPriority(priority); // Definindo a prioridade do thread
-        carThread.start();
+        running = true;  // Define o carro como em execução
+        notify();  // Notifica a thread para começar a corrida
     }
 
     @Override
@@ -312,10 +328,12 @@ public class Car implements Runnable, Raceable {
         Log.d("Car", "Thread iniciada para " + name + " com prioridade " + priority);
         while (!Thread.currentThread().isInterrupted()) {
             try {
-                if (!running) {
-                    break;
+                if (!running) {  // Espera até o startRace() ser chamado
+                    synchronized (this) {
+                        wait();
+                    }
                 }
-                if (paused) {
+                if (paused) {  // Pausa a execução se necessário
                     synchronized (this) {
                         wait();
                     }
@@ -331,6 +349,7 @@ public class Car implements Runnable, Raceable {
         }
     }
 
+
     public void updateCarPosition() {
         Point target = getCenterOfMassPosition();
         moveTowards(target, cars);
@@ -342,7 +361,7 @@ public class Car implements Runnable, Raceable {
             if (centerOfMassPosition != null) {
                 centerOfMassView.setX(centerOfMassPosition.x);
                 centerOfMassView.setY(centerOfMassPosition.y);
-                centerOfMassView.setVisibility(View.VISIBLE);  //tornar centro de massa transparente
+                centerOfMassView.setVisibility(View.INVISIBLE);  //tornar centro de massa transparente
             } else {
                 centerOfMassView.setVisibility(View.INVISIBLE);
             }
@@ -366,4 +385,5 @@ public class Car implements Runnable, Raceable {
     public void setPriority(int priority) {
         this.priority = priority;
     }
+
 }

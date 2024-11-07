@@ -1,6 +1,5 @@
 package com.example.tarefa1_matheusrodrigues;
 
-import android.content.SharedPreferences;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
@@ -20,7 +19,6 @@ import com.google.firebase.firestore.DocumentSnapshot;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.constraintlayout.widget.ConstraintLayout;
 
-import android.widget.ImageView;
 import android.widget.TextView;
 
 import java.util.concurrent.Semaphore;
@@ -100,22 +98,48 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
+        // Botão de Reset
+        ImageButton resetButton = findViewById(R.id.reset_button);
+        resetButton.setOnClickListener(v -> resetCarStates());
+
+        loadCarStates();
+
     }
 
     private void startRace() {
-        // Adicionar o Safety Car
-        Car safetyCar = createSafetyCar();
-        raceableCars.add(safetyCar);
-        safetyCar.startRace();
+        boolean safetyCarExists = false;
 
-        // Criar carros normais levando em conta o Safety Car
+        // Verificar se o Safety Car já existe
+        for (Car car : cars) {
+            if (car.getName().equals("SafetyCar")) {
+                safetyCarExists = true;
+                break;
+            }
+        }
+
+        // Inicializar o Safety Car se ainda não existir
+        if (!safetyCarExists) {
+            Car safetyCar = createSafetyCar();
+            raceableCars.add(safetyCar);
+            safetyCar.startRace();
+        }
+
+        // Iniciar todos os carros carregados
+        for (Car car : cars) {
+            if (!car.isRunning()) {
+                car.startRace();
+            }
+        }
+
+        // Criar novos carros com base na entrada do usuário
         String inputText = carrosInput.getText().toString();
-        // Declare a variável aqui
-        int numCars = inputText.isEmpty() ? 0 : Integer.parseInt(inputText) - 1; // Subtraia 1 para o Safety Car
-        if (numCars > 0) {
-            for (int i = 0; i < numCars; i++) {
+        int numCars = inputText.isEmpty() ? 0 : Integer.parseInt(inputText);
+        int carsToAdd = numCars - 1; // Subtrai 1 para o Safety Car
+
+        if (carsToAdd > 0) {
+            for (int i = 0; i < carsToAdd; i++) {
                 int delay = i * 900;
-                final int carIndex = i;
+                final int carIndex = cars.size() + i; // Use cars.size() para garantir que os índices não se repitam
                 handler.postDelayed(() -> {
                     Car car = createCar(carIndex);
                     raceableCars.add(car);
@@ -132,11 +156,13 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+
+
     // Método para criar o Safety Car
     private Car createSafetyCar() {
         double initialX = 480;
         double initialY = 430;
-        double randomSpeed = 1 + Math.random() * 20;
+        double randomSpeed = 15 + Math.random() * 10; // Defina a velocidade entre 15 e 25
         ImageView carImageView = new ImageView(this);
         carImageView.setImageResource(R.drawable.safety); // Recurso de imagem do Safety Car
         int sensorRange = 50;
@@ -154,6 +180,8 @@ public class MainActivity extends AppCompatActivity {
     }
 
 
+
+
     private Car createCar(int index) {
         double initialX = 480;
         double initialY = 430;
@@ -163,7 +191,7 @@ public class MainActivity extends AppCompatActivity {
         int sensorRange = 50;
         Car car = new Car(this, "Carro" + (index + 1), initialX, initialY, sensorRange, findViewById(R.id.pista), carImageView, cars);
         car.setSpeed(randomSpeed);
-        cars.add(car);
+        cars.add(car); // Adiciona o carro na lista de carros
         int carSize = 37;
         carImageView.setLayoutParams(new ConstraintLayout.LayoutParams(carSize, carSize));
         carImageView.setX((float) car.getX());
@@ -172,6 +200,7 @@ public class MainActivity extends AppCompatActivity {
         carImageViews.add(carImageView);
         return car;
     }
+
 
     private void updateCarPositions() {
         for (int i = 0; i < cars.size(); i++) {
@@ -334,30 +363,38 @@ public class MainActivity extends AppCompatActivity {
     private void pauseRace() {
         for (Car car : cars) {
             car.stopRunning();
+            saveCarState(car); // Salva o estado de cada carro
         }
-        runOnUiThread(() -> statusText.setText("Corrida Pausada"));
-        statusText.setVisibility(View.VISIBLE); // Tornar a TextView visível
+        runOnUiThread(() -> {
+            statusText.setText("Corrida Pausada");
+            statusText.setVisibility(View.VISIBLE); // Tornar a TextView visível
+            for (ImageView carImageView : carImageViews) {
+                carImageView.setVisibility(View.VISIBLE);
+            }
+        });
     }
 
-    // Método para finalizar a corrida
     private void finishRace() {
         for (Car car : cars) {
             car.stopRunning();
+            saveCarState(car); // Salva o estado de cada carro
         }
-        // Limpar as listas e remover as views
-        for (ImageView carImageView : carImageViews) {
-            mainLayout.removeView(carImageView); // Remove a ImageView do layout
-        }
-        cars.clear(); // Limpar a lista de carros
-        carImageViews.clear(); // Limpar a lista de ImageViews
-        runOnUiThread(() -> statusText.setText("Corrida Finalizada"));
-        statusText.setVisibility(View.VISIBLE); // Tornar a TextView visível
+        runOnUiThread(() -> {
+            statusText.setText("Corrida Finalizada");
+            statusText.setVisibility(View.VISIBLE); // Tornar a TextView visível
+            for (ImageView carImageView : carImageViews) {
+                carImageView.setVisibility(View.VISIBLE);
+            }
+        });
     }
+
+
+
 
     private void saveCarState(Car car) {
         CarData carData = new CarData(
                 car.getName(), car.getX(), car.getY(), car.getSpeed(), car.getAngle(),
-                car.getSensorRange(), car.getDistance(), car.getPenalty()
+                car.getSensorRange(), car.getDistance(), car.getPenalty(), car.getName().equals("SafetyCar")
         );
 
         db.collection("cars")
@@ -368,4 +405,90 @@ public class MainActivity extends AppCompatActivity {
     }
 
 
+
+    private void loadCarStates() {
+        db.collection("cars")
+                .get()
+                .addOnCompleteListener(task -> {
+                    if (task.isSuccessful()) {
+                        boolean hasCars = false;
+                        for (DocumentSnapshot document : task.getResult()) {
+                            CarData carData = document.toObject(CarData.class);
+                            if (carData != null) {
+                                createCarFromData(carData, false); // Cria os carros sem iniciá-los
+                                hasCars = true;
+                            }
+                        }
+                        if (hasCars) {
+                            Log.d("Firestore", "Carros carregados, prontos para iniciar.");
+                        } else {
+                            Log.d("Firestore", "Nenhum carro salvo encontrado.");
+                        }
+                    } else {
+                        Log.w("Firestore", "Erro ao carregar estados dos carros", task.getException());
+                    }
+                });
+    }
+
+
+
+    private void createCarFromData(CarData carData, boolean shouldStartRace) {
+        ImageView carImageView = new ImageView(this);
+        int carImageResource = carData.isSafetyCar() ? R.drawable.safety : R.drawable.car;
+        carImageView.setImageResource(carImageResource);
+
+        Car car = new Car(
+                this, carData.getName(), carData.getX(), carData.getY(), carData.getSensorRange(),
+                findViewById(R.id.pista), carImageView, cars
+        );
+        car.setSpeed(carData.getSpeed());
+        car.setAngle(carData.getAngle());
+        car.setDistance(carData.getDistance());
+        car.setPenalty(carData.getPenalty());
+
+        cars.add(car);
+        raceableCars.add(car);
+
+        int carSize = 37;
+        carImageView.setLayoutParams(new ConstraintLayout.LayoutParams(carSize, carSize));
+        carImageView.setX((float) car.getX());
+        carImageView.setY((float) car.getY());
+        mainLayout.addView(carImageView);
+        carImageViews.add(carImageView);
+
+        if (shouldStartRace) {
+            car.startRace(); // Inicia o carro apenas se indicado
+        }
+    }
+
+
+
+
+
+    private void resetCarStates() {
+        db.collection("cars")
+                .get()
+                .addOnCompleteListener(task -> {
+                    if (task.isSuccessful()) {
+                        for (DocumentSnapshot document : task.getResult()) {
+                            db.collection("cars").document(document.getId()).delete();
+                        }
+                        Log.d("Firestore", "Todos os carros foram apagados.");
+                        // Reiniciar o estado dos carros na interface
+                        runOnUiThread(() -> {
+                            cars.clear();
+                            carImageViews.clear();
+                            mainLayout.removeAllViewsInLayout(); // Remove todas as views de carros sem limpar a interface
+                            statusText.setText("Carros foram resetados");
+                            statusText.setVisibility(View.VISIBLE);
+                        });
+                    } else {
+                        Log.w("Firestore", "Erro ao apagar carros", task.getException());
+                    }
+                });
+    }
+
+
+
 }
+
