@@ -1,0 +1,13 @@
+<resources>
+    <string name="app_name">Tarefa1_MatheusRodrigues</string>
+    <string name="qtd_carros">Qtd de carros:</string>
+    <string name="footer_text">Matheus Rodrigues da Fonseca</string>
+    <string name="todo">TODO</string>
+    <string name="todoO">TODO</string>
+    <string name="todoOO">TODO</string>
+    <string name="qtde_de_carros">Qtde de carros</string>
+    <string name="imagem_da_pista">Imagem da pista</string>
+    <string name="pause">pause</string>
+    <string name="finish">finish</string>
+
+</resources>

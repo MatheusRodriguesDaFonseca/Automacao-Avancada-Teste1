@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "106234193597",
+    "project_id": "corridadecarros-61cad",
+    "storage_bucket": "corridadecarros-61cad.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:106234193597:android:05671dddf281755c37b9d4",
+        "android_client_info": {
+          "package_name": "com.example.tarefa1_matheusrodrigues"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB4eYLbIkQBPsagoKUVyWZDy0aiJmv8N1M"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
