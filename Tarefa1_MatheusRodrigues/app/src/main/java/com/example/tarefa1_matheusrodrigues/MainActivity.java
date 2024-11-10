@@ -13,13 +13,19 @@ import android.view.View;
 import android.widget.EditText;
 import android.widget.ImageButton;
 import android.widget.ImageView;
+
+import com.example.racelibrary.CarData;
+import com.example.racelibrary.CalculationUtils;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.DocumentSnapshot;
+import com.example.racelibrary.FirestoreUtils;
+
 
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.constraintlayout.widget.ConstraintLayout;
 
 import android.widget.TextView;
+import android.widget.Toast;
 
 import java.util.concurrent.Semaphore;
 
@@ -106,6 +112,10 @@ public class MainActivity extends AppCompatActivity {
 
     }
 
+    /**
+     * Inicia a corrida, verificando e inicializando o Safety Car,
+     * iniciando carros carregados e criando novos carros com base na entrada do usuário.
+     */
     private void startRace() {
         boolean safetyCarExists = false;
 
@@ -157,7 +167,6 @@ public class MainActivity extends AppCompatActivity {
     }
 
 
-
     // Método para criar o Safety Car
     private Car createSafetyCar() {
         double initialX = 480;
@@ -180,8 +189,6 @@ public class MainActivity extends AppCompatActivity {
     }
 
 
-
-
     private Car createCar(int index) {
         double initialX = 480;
         double initialY = 430;
@@ -200,109 +207,6 @@ public class MainActivity extends AppCompatActivity {
         carImageViews.add(carImageView);
         return car;
     }
-
-
-    private void updateCarPositions() {
-        for (int i = 0; i < cars.size(); i++) {
-            Car car = cars.get(i);
-            ImageView carImageView = carImageViews.get(i);
-            View comView = centerOfMassViews.get(i);
-
-            // Obtém a posição do centro de massa
-            Point centerOfMass = car.getCenterOfMassPosition();
-            if (centerOfMass != null) {
-                comView.setX(centerOfMass.x - (float) comView.getWidth() / 2);
-                comView.setY(centerOfMass.y - (float) comView.getHeight() / 2);
-                comView.setVisibility(View.VISIBLE);
-            } else {
-                comView.setVisibility(View.INVISIBLE);
-            }
-
-            // Move o carro em direção ao centro de massa
-            car.moveTowards(centerOfMass, cars); // Passa a lista de carros para evitar colisões
-
-            // Atualiza a posição da ImageView do carro
-            carImageView.setX((float) car.getX() - 40);
-            carImageView.setY((float) car.getY() - 20);
-
-            // Rotaciona a ImageView do carro para acompanhar o ângulo
-            carImageView.setRotation((float) car.getAngle());
-
-            // Desenhar a distância e o alcance do sensor
-            drawSensorRange(car); // Função para desenhar a distância
-        }
-    }
-
-    private void drawSensorRange(Car car) {
-        ImageView sensorCanvas = findViewById(R.id.sensor_canvas); // Acessa o ImageView que usaremos para desenhar
-
-        // Criar um bitmap e um canvas para desenhar
-        Bitmap bitmap = Bitmap.createBitmap(sensorCanvas.getWidth(), sensorCanvas.getHeight(), Bitmap.Config.ARGB_8888);
-        Canvas canvas = new Canvas(bitmap);
-
-        // Desenhar o círculo de alcance do sensor
-        Paint paint = new Paint();
-        paint.setColor(Color.TRANSPARENT); // Cor do círculo
-        paint.setStyle(Paint.Style.STROKE);
-        paint.setStrokeWidth(5);
-
-        // Ponto central (posição do carro)
-        int carCenterX = (int) car.getX();
-        int carCenterY = (int) car.getY();
-
-        // Desenhar o círculo com o raio do sensor
-        canvas.drawCircle(carCenterX, carCenterY, car.getSensorRange(), paint);
-
-        // Desenhar o campo de varredura (cone) do sensor
-        double angleRad = Math.toRadians(car.getAngle());
-        double halfConeAngle = Math.PI / 2; // 45 graus para cada lado
-        int sensorRange = car.getSensorRange();
-
-        // Calcular os pontos do cone
-        Point tip = new Point(carCenterX + (int) (sensorRange * Math.cos(angleRad)),
-                carCenterY + (int) (sensorRange * Math.sin(angleRad)));
-
-        Point left = new Point(carCenterX + (int) (sensorRange * Math.cos(angleRad - halfConeAngle)),
-                carCenterY + (int) (sensorRange * Math.sin(angleRad - halfConeAngle)));
-
-        Point right = new Point(carCenterX + (int) (sensorRange * Math.cos(angleRad + halfConeAngle)),
-                carCenterY + (int) (sensorRange * Math.sin(angleRad + halfConeAngle)));
-
-        // Desenhar o cone do sensor
-        paint.setColor(Color.TRANSPARENT); // Cor do cone
-        paint.setStyle(Paint.Style.FILL);
-        Path path = new Path();
-        path.moveTo(carCenterX, carCenterY); // Ponto de origem
-        path.lineTo(tip.x, tip.y); // Ponto da frente do sensor
-        path.lineTo(left.x, left.y); // Ponto esquerdo do cone
-        path.lineTo(carCenterX, carCenterY); // Volta para o centro
-        path.lineTo(right.x, right.y); // Ponto direito do cone
-        path.lineTo(tip.x, tip.y); // Conecta ao ponto da frente
-        canvas.drawPath(path, paint);
-
-        // Encontrar o ponto mais distante dentro do alcance do sensor
-        Point mostDistantPoint = null;
-        List<Point> whitePixels = car.scanForWhitePixels();
-        double maxDistance = 0;
-        for (Point p : whitePixels) {
-            double distance = Math.hypot(p.x - carCenterX, p.y - carCenterY);
-            if (distance > maxDistance) {
-                maxDistance = distance;
-                mostDistantPoint = p;
-            }
-        }
-
-        if (mostDistantPoint != null) {
-            // Desenhar o ponto mais distante
-            paint.setColor(Color.GREEN);
-            paint.setStyle(Paint.Style.FILL);
-            canvas.drawCircle(mostDistantPoint.x, mostDistantPoint.y, 10, paint); // Ponto verde no destino
-        }
-
-        // Atualiza a imagem da tela com o desenho
-        sensorCanvas.setImageBitmap(bitmap);
-    }
-
 
     private void updateCarSpeeds() {
         for (Car car : cars) {
@@ -338,26 +242,37 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    /**
+     * Desenha uma região crítica na view `criticalRegionView`.
+     * A região crítica é representada por uma série de pontos verdes desenhados em uma área específica.
+     */
     private void drawCriticalRegion() {
+        // Obtém a largura e a altura da `criticalRegionView`
         int width = criticalRegionView.getWidth();
         int height = criticalRegionView.getHeight();
 
+        // Cria um bitmap para desenhar na view
         Bitmap bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
         Canvas canvas = new Canvas(bitmap);
 
+        // Configura a pintura para desenhar os pontos
         Paint paint = new Paint();
-        paint.setColor(Color.GREEN);
-        paint.setStyle(Paint.Style.FILL);
+        paint.setColor(Color.GREEN); // Define a cor dos pontos como verde
+        paint.setStyle(Paint.Style.FILL); // Preenche os pontos
 
         int pontoTamanho = 2; // Tamanho dos pontos
+
+        // Desenha os pontos em uma área específica definida por coordenadas x e y
         for (int x = 200; x < 400; x += 10) {
-            for (int y = 55; y < 140; y += 10) { // Ajuste as coordenadas para desenhar na região desejada
+            for (int y = 55; y < 140; y += 10) {
                 canvas.drawCircle(x, y, pontoTamanho, paint);
             }
         }
 
+        // Define o bitmap resultante na `criticalRegionView`
         criticalRegionView.setImageBitmap(bitmap);
     }
+
 
     // Método para pausar a corrida
     private void pauseRace() {
@@ -389,47 +304,15 @@ public class MainActivity extends AppCompatActivity {
     }
 
 
-
-
     private void saveCarState(Car car) {
-        CarData carData = new CarData(
-                car.getName(), car.getX(), car.getY(), car.getSpeed(), car.getAngle(),
-                car.getSensorRange(), car.getDistance(), car.getPenalty(), car.getName().equals("SafetyCar")
-        );
-
-        db.collection("cars")
-                .document(car.getName())
-                .set(carData)
-                .addOnSuccessListener(aVoid -> Log.d("Firestore", "Carro salvo com sucesso!"))
-                .addOnFailureListener(e -> Log.w("Firestore", "Erro ao salvar carro", e));
+        CarData carData = new CarData(car.getName(), car.getX(), car.getY(), car.getSpeed(), car.getAngle(), car.getSensorRange(), car.getDistance(), car.getPenalty(), car.getName().equals("SafetyCar"));
+        FirestoreUtils.saveCarState(carData);
     }
-
 
 
     private void loadCarStates() {
-        db.collection("cars")
-                .get()
-                .addOnCompleteListener(task -> {
-                    if (task.isSuccessful()) {
-                        boolean hasCars = false;
-                        for (DocumentSnapshot document : task.getResult()) {
-                            CarData carData = document.toObject(CarData.class);
-                            if (carData != null) {
-                                createCarFromData(carData, false); // Cria os carros sem iniciá-los
-                                hasCars = true;
-                            }
-                        }
-                        if (hasCars) {
-                            Log.d("Firestore", "Carros carregados, prontos para iniciar.");
-                        } else {
-                            Log.d("Firestore", "Nenhum carro salvo encontrado.");
-                        }
-                    } else {
-                        Log.w("Firestore", "Erro ao carregar estados dos carros", task.getException());
-                    }
-                });
+        FirestoreUtils.loadCarStates(carData -> createCarFromData(carData, false));
     }
-
 
 
     private void createCarFromData(CarData carData, boolean shouldStartRace) {
@@ -442,7 +325,7 @@ public class MainActivity extends AppCompatActivity {
                 findViewById(R.id.pista), carImageView, cars
         );
         car.setSpeed(carData.getSpeed());
-        car.setAngle(carData.getAngle());
+        car.setAngle(carData.getAngle()); // Restaurar o ângulo corretamente
         car.setDistance(carData.getDistance());
         car.setPenalty(carData.getPenalty());
 
@@ -453,6 +336,7 @@ public class MainActivity extends AppCompatActivity {
         carImageView.setLayoutParams(new ConstraintLayout.LayoutParams(carSize, carSize));
         carImageView.setX((float) car.getX());
         carImageView.setY((float) car.getY());
+        carImageView.setRotation((float) car.getAngle()); // Aplicar a rotação ao ImageView
         mainLayout.addView(carImageView);
         carImageViews.add(carImageView);
 
@@ -460,10 +344,6 @@ public class MainActivity extends AppCompatActivity {
             car.startRace(); // Inicia o carro apenas se indicado
         }
     }
-
-
-
-
 
     private void resetCarStates() {
         db.collection("cars")
@@ -479,7 +359,16 @@ public class MainActivity extends AppCompatActivity {
                             cars.clear();
                             carImageViews.clear();
                             mainLayout.removeAllViewsInLayout(); // Remove todas as views de carros sem limpar a interface
-                            statusText.setText("Carros foram resetados");
+
+                            // Exibir uma mensagem de "Jogo Resetado" usando Toast
+                            Toast.makeText(MainActivity.this, "Jogo Resetado", Toast.LENGTH_SHORT).show();
+                            Toast.makeText(MainActivity.this, "Reinicie o Jogo", Toast.LENGTH_SHORT).show();
+
+
+                            // Redefinir a cor de fundo do mainLayout, se necessário
+                            mainLayout.setBackgroundColor(Color.WHITE); // Ajuste a cor conforme necessário
+
+                            // Opcional: Redefinir a visibilidade do statusText
                             statusText.setVisibility(View.VISIBLE);
                         });
                     } else {
@@ -487,7 +376,6 @@ public class MainActivity extends AppCompatActivity {
                     }
                 });
     }
-
 
 
 }

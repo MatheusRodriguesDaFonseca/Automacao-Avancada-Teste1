@@ -8,6 +8,9 @@ import android.graphics.Point;
 import android.os.Build;
 import android.util.Log;
 import android.view.View;
+import com.example.racelibrary.CarData;
+import com.example.racelibrary.CalculationUtils;
+
 import android.widget.ImageView;
 
 import androidx.annotation.RequiresApi;
@@ -64,9 +67,9 @@ public class Car implements Runnable, Raceable {
         carThread.start();
     }
 
+    // Use o método da CalculationUtils para gerar a velocidade aleatória
     public double generateRandomSpeed() {
-        Random random = new Random();
-        return 20 + random.nextInt(11); // Gera um valor entre 15 e 25
+        return CalculationUtils.generateRandomSpeed();
     }
 
     public double getX() {
@@ -135,38 +138,10 @@ public class Car implements Runnable, Raceable {
         return running;
     }
 
+    // Faz uma varredura na área ao redor do carro para encontrar pixels brancos dentro do alcance do sensor
     public List<Point> scanForWhitePixels() {
-        List<Point> whitePixels = new ArrayList<>();
         Bitmap bitmap = getBitmapFromView(trackView);
-        Point carCenter = new Point((int) x, (int) y + (carImageView.getWidth() / 2));
-        int width = bitmap.getWidth();
-        int height = bitmap.getHeight();
-        double angleRad = Math.toRadians(angle);
-        double halfConeRad = Math.PI / 4;
-        int sensorRangeSquared = sensorRange * sensorRange;
-        for (int i = -sensorRange; i <= sensorRange; i++) {
-            for (int j = -sensorRange; j <= sensorRange; j++) {
-                double distanceSquared = i * i + j * j;
-                if (distanceSquared > sensorRangeSquared) {
-                    continue;
-                }
-                double pixelAngle = Math.atan2(j, i);
-                double angleDiff = pixelAngle - angleRad;
-                if (angleDiff > Math.PI) angleDiff -= 2 * Math.PI;
-                if (angleDiff < -Math.PI) angleDiff += 2 * Math.PI;
-                if (angleDiff >= -halfConeRad && angleDiff <= halfConeRad) {
-                    int pixelX = carCenter.x + i;
-                    int pixelY = carCenter.y + j;
-                    if (pixelX >= 0 && pixelX < width && pixelY >= 0 && pixelY < height) {
-                        int pixelColor = bitmap.getPixel(pixelX, pixelY);
-                        if (Color.red(pixelColor) == 255 && Color.green(pixelColor) == 255 && Color.blue(pixelColor) == 255) {
-                            whitePixels.add(new Point(pixelX, pixelY));
-                        }
-                    }
-                }
-            }
-        }
-        return whitePixels;
+        return CalculationUtils.scanForWhitePixels(bitmap, x, y + (carImageView.getWidth() / 2), angle, sensorRange);
     }
 
     private Bitmap getBitmapFromView(View view) {
@@ -193,19 +168,21 @@ public class Car implements Runnable, Raceable {
         return centerOfMass;
     }
 
+    // Método para mover o carro para o próximo ponto
+    // OtherCars A lista de outros carros para evitar colisões.
     public void moveTowards(Point target, List<Car> otherCars) {
         try {
             if (target != null) {
                 double deltaX = target.x - x;
                 double deltaY = target.y - y;
-                double angleToTarget = Math.atan2(deltaY, deltaX);
+                double angleToTarget = CalculationUtils.calculateAngle(deltaX, deltaY);
                 boolean shouldAvoid = false;
                 boolean avoidToLeft = false;
 
                 for (Car otherCar : otherCars) {
                     if (otherCar != this) {
-                        double distance = Math.hypot(otherCar.getX() - x, otherCar.getY() - y);
-                        double angleToOtherCar = Math.atan2(otherCar.getY() - y, otherCar.getX() - x);
+                        double distance = CalculationUtils.calculateDistance(otherCar.getX(), otherCar.getY(), x, y);
+                        double angleToOtherCar = CalculationUtils.calculateAngle(otherCar.getY() - y, otherCar.getX() - x);
                         double angleDifference = Math.abs(Math.toDegrees(angleToOtherCar - angleToTarget));
                         if (distance < sensorRange && angleDifference < 45) {
                             shouldAvoid = true;
@@ -216,7 +193,7 @@ public class Car implements Runnable, Raceable {
                 }
 
                 if (shouldAvoid) {
-                    angleToTarget += avoidToLeft ? -Math.PI / 6 : Math.PI / 6;
+                    angleToTarget = CalculationUtils.adjustAngleToAvoidCollision(angleToTarget, avoidToLeft);
                 }
 
                 double nextX = x + Math.cos(angleToTarget) * speed;
@@ -236,7 +213,7 @@ public class Car implements Runnable, Raceable {
 
                 Bitmap bitmap = getBitmapFromView(trackView);
                 int pixelColor = bitmap.getPixel((int) nextX, (int) nextY);
-                if (Color.red(pixelColor) == 255 && Color.green(pixelColor) == 255 && Color.blue(pixelColor) == 255) {
+                if (CalculationUtils.isWhitePixel(pixelColor)) {
                     x = nextX;
                     y = nextY;
                     angle = Math.toDegrees(angleToTarget);
@@ -250,7 +227,7 @@ public class Car implements Runnable, Raceable {
                         double adjustedX = x + Math.cos(adjustedAngle) * speed;
                         double adjustedY = y + Math.sin(adjustedAngle) * speed;
                         int adjustedPixelColor = bitmap.getPixel((int) adjustedX, (int) adjustedY);
-                        if (Color.red(adjustedPixelColor) == 255 && Color.green(adjustedPixelColor) == 255 && Color.blue(adjustedPixelColor) == 255) {
+                        if (CalculationUtils.isWhitePixel(adjustedPixelColor)) {
                             x = adjustedX;
                             y = adjustedY;
                             angle = Math.toDegrees(adjustedAngle);
@@ -272,7 +249,7 @@ public class Car implements Runnable, Raceable {
                 // Detectar colisões com outros carros
                 for (Car otherCar : otherCars) {
                     if (otherCar != this) {
-                        double distanceToOtherCar = Math.hypot(otherCar.getX() - x, otherCar.getY() - y);
+                        double distanceToOtherCar = CalculationUtils.calculateDistance(otherCar.getX(), otherCar.getY(), x, y);
                         if (distanceToOtherCar < 5) {  // Supondo um raio de colisão de 5 pixels
                             penalty++;  // Incrementar a penalidade em caso de colisão com outro carro
                             activity.runOnUiThread(() -> ((MainActivity) activity).updatePenaltyText(penalty));
@@ -285,6 +262,8 @@ public class Car implements Runnable, Raceable {
         }
     }
 
+    // Método para verificar se o carro está na região crítica
+    // Envolve cálculos e serve para ajustar a trajetória do carro em caso de colisão ou obstáculo detectado no caminho.
     private void recheckPath(Bitmap bitmap) {
         for (int angleOffset = -45; angleOffset <= 45; angleOffset += 15) {
             double adjustedAngle = Math.toRadians(angle) + Math.toRadians(angleOffset);
@@ -300,11 +279,10 @@ public class Car implements Runnable, Raceable {
         }
     }
 
+
+    // Método para obter a posição frontal do carro
     public Point getFrontPosition() {
-        double angleRad = Math.toRadians(angle);
-        int frontX = (int) (x + Math.cos(angleRad) * 10);
-        int frontY = (int) (y + Math.sin(angleRad) * 10);
-        return new Point(frontX, frontY);
+        return CalculationUtils.getFrontPosition(x, y, angle);
     }
 
     public Point getCenterOfMassPosition() {
@@ -348,7 +326,6 @@ public class Car implements Runnable, Raceable {
             }
         }
     }
-
 
     public void updateCarPosition() {
         Point target = getCenterOfMassPosition();

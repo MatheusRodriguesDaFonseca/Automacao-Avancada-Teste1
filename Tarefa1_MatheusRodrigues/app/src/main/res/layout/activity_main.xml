@@ -65,9 +65,9 @@
         android:layout_height="68dp"
         android:layout_marginTop="404dp"
         android:background="?attr/selectableItemBackground"
+        android:contentDescription="Botão para iniciar a corrida"
         android:scaleType="fitCenter"
         android:src="@drawable/start"
-        android:contentDescription="Botão para iniciar a corrida"
         app:layout_constraintTop_toTopOf="parent"
         tools:ignore="MissingConstraints" />
 
@@ -77,12 +77,12 @@
         android:layout_height="68dp"
         android:layout_marginTop="480dp"
         android:background="?attr/selectableItemBackground"
+        android:contentDescription="Botão para pausar a corrida"
         android:scaleType="fitCenter"
         android:src="@drawable/pause"
-        android:contentDescription="Botão para pausar a corrida"
         app:layout_constraintTop_toTopOf="parent"
-        tools:layout_editor_absoluteX="1dp"
-        tools:ignore="MissingConstraints" />
+        tools:ignore="MissingConstraints"
+        tools:layout_editor_absoluteX="1dp" />
 
     <ImageButton
         android:id="@+id/finish_button"
@@ -90,9 +90,9 @@
         android:layout_height="68dp"
         android:layout_marginTop="557dp"
         android:background="?attr/selectableItemBackground"
+        android:contentDescription="Botão para finalizar a corrida"
         android:scaleType="fitCenter"
         android:src="@drawable/finish"
-        android:contentDescription="Botão para finalizar a corrida"
         app:layout_constraintTop_toTopOf="parent"
         tools:ignore="MissingConstraints" />
 
@@ -116,13 +116,13 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="600dp"
+        android:layout_marginBottom="70dp"
+        android:gravity="center"
         android:text=""
         android:textSize="18sp"
         android:visibility="gone"
-        android:gravity="center"
-        app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        android:layout_marginBottom="70dp"
+        app:layout_constraintStart_toStartOf="parent"
         tools:ignore="MissingConstraints" />
 
     <TextView
@@ -150,15 +150,16 @@
         android:layout_height="wrap_content"
         android:layout_margin="16dp"
         android:background="?attr/selectableItemBackground"
+        android:contentDescription="Botão para resetar a corrida"
         android:scaleType="fitCenter"
         android:src="@drawable/resetar1"
-        android:contentDescription="Botão para resetar a corrida"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintHorizontal_bias="1.0"
         app:layout_constraintRight_toRightOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         tools:ignore="MissingConstraints" />
+
 
 
 

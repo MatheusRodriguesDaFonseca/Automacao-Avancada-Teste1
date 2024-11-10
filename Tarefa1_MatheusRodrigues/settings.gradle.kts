@@ -21,4 +21,6 @@ dependencyResolutionManagement {
 
 rootProject.name = "Tarefa1_MatheusRodrigues"
 include(":app")
- 
+
+include(":RaceLibrary")
+
