@@ -81,4 +81,6 @@ public class CalculationUtils {
         int frontY = (int) (y + Math.sin(angleRad) * 10);
         return new Point(frontX, frontY);
     }
+
+    //hkygyyj
  }
