@@ -82,5 +82,16 @@ public class CalculationUtils {
         return new Point(frontX, frontY);
     }
 
-    
- }
+    //
+    public static double normalizeAngle(double angle2) {
+        double angle = angle2;
+        while (angle >= 360) {
+            angle -= 360;
+        }
+        while (angle < 0) {
+            angle += 360;
+        }
+        return angle;
+
+    }
+}
