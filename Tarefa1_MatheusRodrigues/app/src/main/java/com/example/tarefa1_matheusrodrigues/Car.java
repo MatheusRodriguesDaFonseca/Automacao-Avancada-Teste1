@@ -24,6 +24,10 @@ import java.util.concurrent.Semaphore;
 
 public class Car implements Runnable, Raceable {
     private final String name;
+    public double positionY;
+    public double velocity;
+    public double direction;
+    public double positionX;
     private double x;
     private double y;
     private double speed;

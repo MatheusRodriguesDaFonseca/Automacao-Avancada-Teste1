@@ -48,6 +48,8 @@ dependencies {
     implementation("androidx.test.ext:junit:1.1.3")
     implementation("androidx.core:core-ktx:1.6.0")
 
+    //implementation("com.github.PhilJay:MPAndroidChart:v3.1.0")
+
     // Dependências de Teste
     testImplementation("junit:junit:4.13.2")
 }

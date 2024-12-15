@@ -4,8 +4,6 @@ import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
-import android.graphics.Point;
-import android.graphics.Path;
 import android.os.Bundle;
 import android.os.Handler;
 import android.util.Log;
@@ -15,11 +13,9 @@ import android.widget.ImageButton;
 import android.widget.ImageView;
 
 import com.example.racelibrary.CarData;
-import com.example.racelibrary.CalculationUtils;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.DocumentSnapshot;
 import com.example.racelibrary.FirestoreUtils;
-
 
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.constraintlayout.widget.ConstraintLayout;
@@ -28,11 +24,11 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import java.util.concurrent.Semaphore;
-
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
+
+import android.os.Process;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -49,6 +45,9 @@ public class MainActivity extends AppCompatActivity {
     Semaphore semaphore = new Semaphore(1);
     private ImageView criticalRegionView; // ImageView para desenhar a região crítica
     private FirebaseFirestore db;
+
+    private static final int NUM_EXECUCOES = 3;
+    private boolean isStarted = false; // Flag para verificar se a corrida já foi iniciada
 
 
     @Override
@@ -117,6 +116,17 @@ public class MainActivity extends AppCompatActivity {
      * iniciando carros carregados e criando novos carros com base na entrada do usuário.
      */
     private void startRace() {
+        if (!isStarted) {
+            isStarted = true; // Marcar que a corrida foi iniciada
+
+            // Iniciar medições
+            medirLeituraSensor(NUM_EXECUCOES);
+            medirCentroDeMassa(NUM_EXECUCOES);
+            medirMovimentacaoCarros(NUM_EXECUCOES);
+            testarEscalonabilidadeComUnicoNucleo(NUM_EXECUCOES);
+        }
+
+
         boolean safetyCarExists = false;
 
         // Verificar se o Safety Car já existe
@@ -187,7 +197,6 @@ public class MainActivity extends AppCompatActivity {
         carImageViews.add(carImageView);
         return car;
     }
-
 
     private Car createCar(int index) {
         double initialX = 480;
@@ -376,6 +385,233 @@ public class MainActivity extends AppCompatActivity {
                     }
                 });
     }
+
+    // CÁLCULO DA LEITURA DO SENSOR
+    public void medirLeituraSensor(int numExecucoes) {
+        long[] temposExecucao = new long[numExecucoes];
+        long lastStartTime = 0;
+        long[] periodos = new long[numExecucoes - 1];
+
+        for (int i = 0; i < numExecucoes; i++) {
+            long startTime = System.nanoTime();
+
+            // Simulação de leitura do sensor
+            lerDadosDoSensor();
+
+            long endTime = System.nanoTime();
+            temposExecucao[i] = (endTime - startTime) / 1000000; // Converter para milissegundos
+            if (i > 0) {
+                periodos[i - 1] = (startTime - lastStartTime) / 1000000; // Período em milissegundos
+            }
+            lastStartTime = startTime;
+        }
+        // Calcular e imprimir valores com o deadline sendo o tempo de execução
+        calcularEImprimirValores("Leitura do Sensor", numExecucoes, temposExecucao, periodos);
+    }
+
+    // Método para medir o Cálculo do Centro de Massa
+    public void medirCentroDeMassa(int numExecucoes) {
+        long[] temposExecucao = new long[numExecucoes];
+        long lastStartTime = 0;
+        long[] periodos = new long[numExecucoes - 1];
+        List<SensorData> dadosSensores = new ArrayList<>();
+
+        for (Car car : cars) {
+            dadosSensores.add(lerDadosDoSensor(car));
+        }
+
+        for (int i = 0; i < numExecucoes; i++) {
+            long startTime = System.nanoTime();
+
+            // Cálculo do centro de massa
+            calcularCentroDeMassa(dadosSensores);
+
+            long endTime = System.nanoTime();
+            temposExecucao[i] = (endTime - startTime) / 1000; // Converter para microsegundos
+
+            if (i > 0) {
+                periodos[i - 1] = (startTime - lastStartTime) / 1000; // Período em microsegundos
+            }
+            lastStartTime = startTime;
+        }
+        calcularEImprimirValores("Cálculo do Centro de Massa", numExecucoes, temposExecucao, periodos);
+    }
+
+
+
+    // Método para medir a Movimentação dos Carros com Distância
+    public void medirMovimentacaoCarros(int numExecucoes) {
+        long[] temposExecucao = new long[numExecucoes];
+        long lastStartTime = 0;
+        long[] periodos = new long[numExecucoes - 1];
+
+        for (int i = 0; i < numExecucoes; i++) {
+            long startTime = System.nanoTime();
+            Log.d("Movimentação dos Carros", "Início da execução " + (i + 1));
+
+            // Movimentação dos carros e medição de distância
+            for (Car car : cars) {
+                double distanciaInicial = calcularDistanciaPercorrida(car);
+                moverCarros(car, 0.1); // deltaTime = 0.1
+                double distanciaPercorrida = calcularDistanciaPercorrida(car) - distanciaInicial;
+                Log.d("Movimentação dos Carros", "Carro " + car.getName() + " - Distância Percorrida: " + distanciaPercorrida);
+
+                if (verificarAtraso(car, distanciaPercorrida, startTime)) {
+                    ajustarVelocidade(car);
+                }
+            }
+
+            long endTime = System.nanoTime();
+            temposExecucao[i] = (endTime - startTime) / 1000; // Converter para microsegundos
+
+            if (i > 0) {
+                periodos[i - 1] = (startTime - lastStartTime) / 1000; // Período em microsegundos
+            }
+            lastStartTime = startTime;
+
+            Log.d("Movimentação dos Carros", "Fim da execução " + (i + 1));
+        }
+        calcularEImprimirValores("Movimentação dos Carros", numExecucoes, temposExecucao, periodos);
+    }
+
+
+
+    // Método para calcular e imprimir Ji, Ci, Pi e Di
+    public void calcularEImprimirValores(String tarefa, int numExecucoes, long[] temposExecucao, long[] periodos) {
+        long soma = 0;
+        long jitter = 0;
+        long maxTempoExecucao = 0;
+
+        for (long tempo : temposExecucao) {
+            soma += tempo;
+            if (tempo > maxTempoExecucao) {
+                maxTempoExecucao = tempo; // Encontrar o tempo de execução máximo para usar como deadline
+            }
+        }
+
+        long media = soma / temposExecucao.length;
+
+        for (long tempo : temposExecucao) {
+            jitter += Math.abs(tempo - media);
+        }
+        jitter /= temposExecucao.length;
+
+        // Calcular Período Médio (Pi)
+        long somaPeriodos = 0;
+        for (long periodo : periodos) {
+            somaPeriodos += periodo;
+        }
+        long periodoMedio = (numExecucoes > 1) ? somaPeriodos / periodos.length : 0;
+
+        System.out.println(tarefa + " - Tempo de Computação (Ci): " + media + " µs");
+        //System.out.println(tarefa + " - Jitter (Ji): " + jitter + " µs");
+        //System.out.println(tarefa + " - Período Médio (Pi): " + periodoMedio + " µs");
+        System.out.println(tarefa + " - Deadline (Di): " + maxTempoExecucao + " µs");
+    }
+
+
+
+    // Método Simulado para leitura do sensor
+    private void lerDadosDoSensor() {
+        try {
+            // Simulação de tempo de leitura
+            Thread.sleep((long) (Math.random() * 100)); // Pausa de 0 a 100 ms
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+    }
+
+    // Método Simulado para calcular o centro de massa
+    private Point calcularCentroDeMassa(List<SensorData> dadosSensores) {
+        double somaMassa = 0;
+        double somaPosX = 0;
+        double somaPosY = 0;
+
+        for (SensorData dados : dadosSensores) {
+            somaMassa += dados.mass;
+            somaPosX += dados.positionX * dados.mass;
+            somaPosY += dados.positionY * dados.mass;
+        }
+
+        double centroX = somaPosX / somaMassa;
+        double centroY = somaPosY / somaMassa;
+
+        return new Point(centroX, centroY);
+    }
+
+    // Método Simulado para ler dados do sensor
+    private SensorData lerDadosDoSensor(Car car) {
+        SensorData dados = new SensorData();
+        dados.mass = Math.random() * 1000; // Simulação de dados
+        dados.positionX = car.getX();
+        dados.positionY = car.getY();
+        return dados;
+    }
+
+    // Classe Simulada para os dados do sensor
+    class SensorData {
+        public double mass;
+        public double positionX;
+        public double positionY;
+    }
+
+    // Classe Simulada para a posição do ponto
+    class Point {
+        public double x;
+        public double y;
+
+        public Point(double x, double y) {
+            this.x = x;
+            this.y = y;
+        }
+    }
+
+    // Método para verificar se um carro está atrasado
+    private boolean verificarAtraso(Car car, double distanciaPercorrida, long startTime) {
+        double tempoDecorrido = (System.nanoTime() - startTime) / 1000000; // Converter para milissegundos
+        double velocidadeEsperada = distanciaPercorrida / tempoDecorrido;
+        boolean atrasado = velocidadeEsperada < car.velocity;
+        if (atrasado) {
+            Log.d("Carro Atrasado", "Carro " + car.getName() + " está atrasado. Velocidade Esperada: " + velocidadeEsperada + ", Velocidade Atual: " + car.velocity);
+        }
+        return atrasado;
+    }
+
+    // Método para ajustar a velocidade de um carro atrasado
+    private void ajustarVelocidade(Car car) {
+        car.velocity *= 1.1; // Aumenta a velocidade em 10%
+        Log.d("Ajuste de Velocidade", "Ajustando velocidade do carro " + car.getName() + " para " + car.velocity);
+    }
+
+    // Método para calcular a distância percorrida por um carro
+    private double calcularDistanciaPercorrida(Car car) {
+        return Math.sqrt(Math.pow(car.positionX, 2) + Math.pow(car.positionY, 2));
+    }
+
+    // Método Simulado para movimentar um carro
+    private void moverCarros(Car car, double deltaTime) {
+        car.positionX += car.velocity * deltaTime * Math.cos(car.direction);
+        car.positionY += car.velocity * deltaTime * Math.sin(car.direction);
+    }
+
+    // Configura o aplicativo para usar apenas um núcleo do processador.
+    public void configurarUnicoNucleo() {
+        int coreNumber = 15; // Uso so primeiro núcleo
+        int mask = 1 << coreNumber; // Cria uma máscara para o núcleo escolhido
+        Process.setThreadPriority(Process.myTid(), mask); // Aplica a máscara à thread atual para usar apenas um núcleo
+    }
+
+    // Método para Testar Escalonabilidade
+    public void testarEscalonabilidadeComUnicoNucleo(int numExecucoes) {
+        // Configurar para usar um único núcleo
+        configurarUnicoNucleo();
+
+        // Executar medições para cada tarefa
+        medirLeituraSensor(numExecucoes);
+        medirCentroDeMassa(numExecucoes);
+        medirMovimentacaoCarros(numExecucoes);
+    }
+
 
 
 }

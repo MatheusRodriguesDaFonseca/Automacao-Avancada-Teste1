@@ -1,11 +1,9 @@
 package com.example.racelibrary;
 
 import java.util.Random;
-
 import android.graphics.Point;
 import android.graphics.Bitmap;
 import android.graphics.Color;
-
 import java.util.ArrayList;
 import java.util.List;
 
@@ -82,7 +80,7 @@ public class CalculationUtils {
         return new Point(frontX, frontY);
     }
 
-    //
+    // Normaliza um ângulo para estar no intervalo de 0 a 360 graus.
     public static double normalizeAngle(double angle2) {
         double angle = angle2;
         while (angle >= 360) {
@@ -92,6 +90,5 @@ public class CalculationUtils {
             angle += 360;
         }
         return angle;
-
     }
 }
